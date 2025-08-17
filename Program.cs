@@ -17,19 +17,21 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers(); 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"),
+    sqlOptions => sqlOptions.EnableRetryOnFailure()) 
+);
 
 const string CorsPolicy = "AllowFrontend";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(CorsPolicy, p =>
-        p.AllowAnyOrigin()      // 
+        p.AllowAnyOrigin()       
          .AllowAnyHeader()
          .AllowAnyMethod());
 });
 
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// builder.Services.AddSwaggerGen();
 
 builder.Services.AddSingleton<IPasswordHasher, PasswordHasher>();
 
@@ -37,11 +39,12 @@ var app = builder.Build();
 
 app.UseCors(CorsPolicy);
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+//if (app.Environment.IsDevelopment() || true)
+//{
+//    app.UseSwagger();
+//    app.UseSwaggerUI();
+//}
+
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -293,6 +296,13 @@ app.MapGet("/users/{userId:int}/purchases", async (int userId, AppDbContext db) 
 
     return Results.Ok(items);
 });
+
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate(); // applies migrations or creates the database
+}
+
 
 app.UseHttpsRedirection();
 app.MapControllers(); 
